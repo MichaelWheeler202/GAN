@@ -1,8 +1,8 @@
 import tensorflow as tf
 
-
 def build_generator(SEED_SIZE, image_shape):
 
+    filter_constant = 16
     l2reg = tf.keras.regularizers.l2()
 
     height = image_shape[0]
@@ -10,30 +10,26 @@ def build_generator(SEED_SIZE, image_shape):
     depth = image_shape[-1]
 
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Dense(height*width*depth, use_bias=False, input_shape=(SEED_SIZE,)))
+    model.add(tf.keras.layers.Dense(height*width*depth*filter_constant, input_shape=(SEED_SIZE,)))
+
     model.add(tf.keras.layers.BatchNormalization())
     model.add(tf.keras.layers.LeakyReLU())
-
-    model.add(tf.keras.layers.Reshape((int(height/8), int(width/8), depth*64)))
-    print(model.output_shape)
-
-    model.add(tf.keras.layers.Conv2DTranspose(depth*128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
-    print(model.output_shape)
-    model.add(tf.keras.layers.BatchNormalization())
     model.add(tf.keras.layers.LeakyReLU())
 
-    model.add(tf.keras.layers.Conv2DTranspose(depth*64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
+    model.add(tf.keras.layers.Reshape((int(height/2), int(width/2), depth * 4 * filter_constant)))
+    print(model.output_shape)
+
+    model.add(tf.keras.layers.Conv2DTranspose(depth * filter_constant, (5, 5), strides=(2, 2), padding='same'))
     print(model.output_shape)
     model.add(tf.keras.layers.BatchNormalization())
     model.add(tf.keras.layers.LeakyReLU())
 
-    model.add(tf.keras.layers.Conv2DTranspose(depth*32, (5, 5), strides=(2, 2), padding='same', use_bias=False))
+    model.add(tf.keras.layers.Conv2DTranspose(depth * int(filter_constant/2), (5, 5), strides=(1, 1), padding='same'))
     print(model.output_shape)
     model.add(tf.keras.layers.BatchNormalization())
     model.add(tf.keras.layers.LeakyReLU())
 
-    model.add(tf.keras.layers.Conv2DTranspose(depth, (5, 5), strides=(2, 2), padding='same', use_bias=False,
-                                              activation='tanh'))
+    model.add(tf.keras.layers.Conv2DTranspose(depth, (5, 5), strides=(1, 1), padding='same', activation='tanh'))
     print(model.output_shape)
 
     return model
@@ -46,11 +42,11 @@ def build_discriminator(img_shape, depth):
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.Conv2D(depth*64, (5, 5), strides=(2, 2), padding='same', input_shape=img_shape, kernel_constraint=const))
     model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.4))
+    model.add(tf.keras.layers.Dropout(0.2))
 
     model.add(tf.keras.layers.Conv2D(depth*128, (5, 5), strides=(2, 2), padding='same', kernel_constraint=const))
     model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.4))
+    model.add(tf.keras.layers.Dropout(0.2))
 
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(1))

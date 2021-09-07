@@ -1,10 +1,3 @@
-"""
-TODO
-    Find way to vary convolution loops in config
-    Figure out how to manage memory with higher resolution images
-
-"""
-
 # Source Materials
 """
 https://medium.com/@utk.is.here/keep-calm-and-train-a-gan-pitfalls-and-tips-on-training-generative-adversarial-networks-edd529764aa9
@@ -15,13 +8,13 @@ https://www.tensorflow.org/tutorials/generative/style_transfer # documentation o
 https://machinelearningmastery.com/how-to-implement-wasserstein-loss-for-generative-adversarial-networks/
 https://machinelearningmastery.com/how-to-code-a-wasserstein-generative-adversarial-network-wgan-from-scratch/
 https://medium.com/@utk.is.here/keep-calm-and-train-a-gan-pitfalls-and-tips-on-training-generative-adversarial-networks-edd529764aa9
-
-
+https://www.kaggle.com/jesucristo/gan-introduction
 */
 """
 
 # external libraries
 import tensorflow as tf
+import os
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
@@ -33,52 +26,70 @@ image_list = []
 
 # Config
 # -----------------------------------------------------------------------------------
+#
+FILE_PATH = 'four_shapes\\shapes\\circle'
+SAVE_DIR = 'output\\four_shapes\\shapes\\circle'
 
-FILE_PATH = 'four_shapes/shapes/circle'
-SAVE_DIR = 'output/four_shapes/shapes/circle'
+# FILE_PATH = 'four_shapes\\shapes\\star'
+# SAVE_DIR = 'output\\four_shapes\\shapes\\star'
 
-# FILE_PATH = 'four_shapes/shapes/star'
-# SAVE_DIR = 'output/four_shapes/shapes/star'
+# FILE_PATH = 'E:\\NASA-Space-images'
+# SAVE_DIR = 'output\\space_images'
 
-# FILE_PATH = 'E:/NASA-Space-images'
-# SAVE_DIR = 'output/space_images'
+# FILE_PATH = 'four_shapes\\shapes\\'
+# SAVE_DIR = 'output\\four_shapes\\shapes\\all'
 
-# FILE_PATH = 'four_shapes/shapes/'
-# SAVE_DIR = 'output/four_shapes/shapes/all'
-
-# FILE_PATH = 'E:/5857_1166105_bundle_archive/fruits-360/Test/Apple Braeburn'
-# SAVE_DIR = 'output/fruits/apples'
-
+# FILE_PATH = 'E:\\5857_1166105_bundle_archive\\fruits-360\\Test\\Apple Braeburn'
+# SAVE_DIR = 'output\\fruits\\apples'
+#
 # FILE_PATH = 'testing_images'
-# SAVE_DIR = 'output/testing_images'
+# SAVE_DIR = 'output\\testing_images'
 
-# FILE_PATH = 'flower_images/'
+# FILE_PATH = 'flower_images\\'
 
-# FILE_PATH = 'E:/gemstones-images/train/All_Stones'
-# FILE_PATH = 'E:/gemstones-images/train/Bixbite'
-# SAVE_DIR = 'output/gemstones'
+# FILE_PATH = 'E:\\gemstones-images\\train\\All_Stones'
+# FILE_PATH = 'E:\\gemstones-images\\train\\Bixbite'
+# SAVE_DIR = 'output\\gemstones'
+
+# FILE_PATH = 'E:\\Paintings\\resized\\128p'
+# FILE_PATH = 'E:\Paintings\images\images\Pablo_Picasso'
+# SAVE_DIR = 'output\\paintings'
+
+# FILE_PATH = 'E:\\cats_set'
+# SAVE_DIR = 'output\\cats'
 
 FILE_TYPES = ['jpg', 'png']
 
 SHOW_OUTPUT = False
 SAVE_OUTPUT = True
 
-resize_shape = (128, 128)
-SEED_SIZE = 64
+resize_shape = (32, 32)
+SEED_SIZE = 100
 
-SAVE_FREQ = 1
-EPOCHS = 1000
-BATCH_SIZE = 2
-DISCRIMINATOR_RATIO = 4
+SAVE_FREQ = 5
+EPOCHS = 500
+BATCH_SIZE = 4
+DISCRIMINATOR_RATIO = 2
 
-discriminator_optimizer = tf.compat.v1.train.RMSPropOptimizer(learning_rate=5e-5)
-generator_optimizer = tf.compat.v1.train.RMSPropOptimizer(learning_rate=5e-6)
+generator_lr = 5e-5
+discriminator_lr = 5e-5
 
 PREVIEW_ROWS = 4
 PREVIEW_COLS = 4
 PREVIEW_MARGIN = 5
 
 # -----------------------------------------------------------------------------------
+
+reset = None
+while reset is None and os.path.exists(SAVE_DIR + '\\Generator') and os.path.exists(SAVE_DIR + '\\Discriminator'):
+    user_input = input("RESET or RESUME training?   ").lower()
+    if user_input == 'reset':
+        reset = True
+    elif user_input == 'resume':
+        reset = False
+
+if reset is None:
+    reset = 'reset'
 
 width, height, depth, image_list = helpers.import_data(FILE_PATH, resize_shape, FILE_TYPES)
 
@@ -96,12 +107,24 @@ image_shape = (GENERATE_SQUARE, GENERATE_SQUARE, IMAGE_CHANNELS)
 # imgplot = plt.imshow(image_list[0])
 # plt.show()
 
-generator = networks.build_generator(SEED_SIZE, image_shape)
+generator = None
+if os.path.exists(SAVE_DIR + '\\Generator') and not reset:
+    generator = tf.keras.models.load_model(SAVE_DIR + '\\Generator')
+else:
+    generator = networks.build_generator(SEED_SIZE, image_shape)
+
+discriminator = None
+
+if os.path.exists(SAVE_DIR + '\\Discriminator') and not reset:
+    discriminator = tf.keras.models.load_model(SAVE_DIR + '\\Discriminator')
+else:
+    discriminator = networks.build_discriminator(image_shape, depth)
+
+
+starting_epoch = 0
 
 noise = tf.random.normal([1, SEED_SIZE])
 generated_image = generator(noise, training=False)
-
-discriminator = networks.build_discriminator(image_shape, depth)
 decision = discriminator(generated_image)
 
 seed = tf.random.normal([16, SEED_SIZE])
@@ -110,6 +133,6 @@ train_data = tf.data.Dataset.from_tensor_slices(image_list).shuffle(30000).batch
 
 print("Training started")
 
-helpers.train(train_data, EPOCHS, generator, discriminator, generator_optimizer, discriminator_optimizer,
-              seed, BATCH_SIZE, SEED_SIZE, SAVE_FREQ, DISCRIMINATOR_RATIO, SHOW_OUTPUT, SAVE_DIR, SAVE_OUTPUT)
+helpers.train(train_data, starting_epoch, EPOCHS, generator, discriminator, seed, BATCH_SIZE, SEED_SIZE, SAVE_FREQ,
+              DISCRIMINATOR_RATIO, SHOW_OUTPUT, SAVE_DIR, SAVE_OUTPUT, generator_lr, discriminator_lr)
 

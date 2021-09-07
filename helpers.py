@@ -6,6 +6,7 @@ from IPython import display
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
+import math
 
 # local files
 import networks
@@ -53,8 +54,6 @@ def import_data(FILE_PATH, resize_shape, filetypes):
                 im = im.resize(size=resize_shape)
 
             data = np.asarray(im, dtype="float32")
-
-            print(data.shape)
 
             image_list[count] = data/255
             count += 1
@@ -107,32 +106,31 @@ def train_step(images, batch_size, seed_size, generator, discriminator,
 
         with tf.GradientTape() as disc_tape:
             generated_images = generator(noise, training=True)
-
             fake_output = discriminator(generated_images, training=True)
-
             fake_disc_loss = networks.critic_loss(label=1, output=fake_output)
 
         gradients_of_discriminator = disc_tape.gradient(fake_disc_loss, discriminator.trainable_variables)
         discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
-
     with tf.GradientTape() as gen_tape:
         generated_images = generator(noise, training=True)
-
         fake_output = discriminator(generated_images, training=True)
-
-
         gen_loss = networks.wasserstein_generator_loss(fake_output=fake_output)
 
     gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
 
 
-def train(dataset, epochs, generator, discriminator,  generator_optimizer, discriminator_optimizer,
-          seed, batch_size, seed_size, save_freq, discriminator_ratio, show_output, save_dir, save_output):
+def train(dataset, starting_epoch, epochs, generator, discriminator,  seed, batch_size, seed_size, save_freq,
+          discriminator_ratio, show_output, save_dir, save_output, generator_lr, discriminator_lr):
 
-    for epoch in range(epochs):
+    generator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=generator_lr)
+    discriminator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=discriminator_lr)
+
+    for epoch in range(starting_epoch, epochs):
         start = time.time()
+
+
 
         for image_batch in dataset:
             train_step(image_batch, batch_size, seed_size, generator, discriminator,
@@ -143,6 +141,8 @@ def train(dataset, epochs, generator, discriminator,  generator_optimizer, discr
 
         if (epoch)%save_freq == 0:
             generate_and_save_images(generator, epoch, seed, show_output, save_dir, save_output)
+            generator.save(save_dir + "\\Generator")
+            discriminator.save(save_dir + "\\Discriminator")
 
         print('Time for epoch {} is {} sec'.format(epoch, time.time()-start))
 
@@ -154,8 +154,6 @@ def train(dataset, epochs, generator, discriminator,  generator_optimizer, discr
             generated_image = generator(noise, training=False)
             decision = discriminator(generated_image, training=False)
             discriminator_fake_scores = discriminator_fake_scores + decision[0][0]
-        # plt.imshow(generated_image[0,:,:,:])
-        # plt.show()
 
         real_images = dataset.shuffle(60000).unbatch().batch(1)
         i = 0
